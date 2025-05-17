@@ -1,0 +1,101 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../aplicacion/proveedores/mascota_proveedor.dart';
+import '../../aplicacion/proveedores/vacuna_proveedor.dart';
+import '../../domain/entidades/mascota.dart';
+import 'editar_mascota_pagina.dart';
+
+class HistorialMascotasPagina extends ConsumerWidget {
+  const HistorialMascotasPagina({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mascotas = ref.watch(mascotasProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Perfil de mis Mascotas'), centerTitle: true),
+      body: mascotas.isEmpty
+          ? const Center(child: Text('No hay mascotas registradas.'))
+          : ListView.builder(
+              itemCount: mascotas.length,
+              itemBuilder: (context, index) {
+                final mascota = mascotas[index];
+
+                return Card(
+                  margin: const EdgeInsets.all(10),
+                  child: ListTile(
+                    leading: Image.file(
+                      File(mascota.foto),
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                    ),
+                    title: Text(mascota.nombre),
+                    subtitle: Text('${mascota.especie} • ${mascota.raza}'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => EditarMascotaPagina(mascota: mascota),
+                              ),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () {
+                            _confirmarEliminacion(context, ref, mascota);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  void _confirmarEliminacion(BuildContext context, WidgetRef ref, Mascota mascota) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('¿Eliminar mascota?'),
+        content: const Text(
+          'Si eliminas esta mascota, también se eliminarán todas sus vacunas. ¿Deseas continuar?',
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancelar'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            child: const Text('Eliminar'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              // Eliminar todas las vacunas
+              final vacunas = ref.read(vacunasProvider(mascota.id));
+              for (final vacuna in vacunas) {
+                await ref.read(vacunasProvider(mascota.id).notifier).eliminarVacuna(vacuna.idVacuna!);
+              }
+
+              // Eliminar la mascota
+              await ref.read(mascotasProvider.notifier).eliminarMascota(mascota.id);
+
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Mascota eliminada')),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
